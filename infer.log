@@ -1,154 +1,0 @@
-[32mActivated conda/uv virtual environment at [36m/venv/main[0m
-[load] device=cuda model=nvidia/diar_streaming_sortformer_4spk-v2.1
-[NeMo W 2026-06-27 06:32:16 megatron_init:62] Megatron num_microbatches_calculator not found, using Apex version.
-OneLogger: Setting error_handling_strategy to DISABLE_QUIETLY_AND_REPORT_METRIC_ERROR for rank (rank=0) with OneLogger disabled. To override: explicitly set error_handling_strategy parameter.
-No exporters were provided. This means that no telemetry data will be collected.
-[NeMo W 2026-06-27 06:32:23 modelPT:188] If you intend to do training or fine-tuning, please call the ModelPT.setup_training_data() method and provide a valid configuration file to setup the train data loader.
-    Train config : 
-    manifest_filepath: null
-    sample_rate: 16000
-    num_spks: 4
-    session_len_sec: 90
-    soft_label_thres: 0.5
-    soft_targets: false
-    labels: null
-    batch_size: 4
-    shuffle: true
-    num_workers: 18
-    validation_mode: false
-    use_lhotse: false
-    use_bucketing: false
-    pin_memory: true
-    window_stride: 0.01
-    subsampling_factor: 8
-    
-[NeMo W 2026-06-27 06:32:23 modelPT:195] If you intend to do validation, please call the ModelPT.setup_validation_data() or ModelPT.setup_multiple_validation_data() method and provide a valid configuration file to setup the validation data loader(s). 
-    Validation config : 
-    manifest_filepath: null
-    is_tarred: false
-    tarred_audio_filepaths: null
-    sample_rate: 16000
-    num_spks: 4
-    session_len_sec: 90
-    soft_label_thres: 0.5
-    soft_targets: false
-    labels: null
-    batch_size: 4
-    shuffle: false
-    num_workers: 18
-    validation_mode: true
-    use_lhotse: false
-    use_bucketing: false
-    drop_last: false
-    pin_memory: true
-    window_stride: 0.01
-    subsampling_factor: 8
-    
-[NeMo W 2026-06-27 06:32:23 modelPT:202] Please call the ModelPT.setup_test_data() or ModelPT.setup_multiple_test_data() method and provide a valid configuration file to setup the test data loader(s).
-    Test config : 
-    manifest_filepath: null
-    is_tarred: false
-    tarred_audio_filepaths: null
-    sample_rate: 16000
-    num_spks: 4
-    session_len_sec: 90
-    soft_label_thres: 0.5
-    soft_targets: false
-    labels: null
-    batch_size: 4
-    shuffle: false
-    seq_eval_mode: true
-    num_workers: 18
-    validation_mode: true
-    use_lhotse: false
-    use_bucketing: false
-    drop_last: false
-    pin_memory: true
-    window_stride: 0.01
-    subsampling_factor: 8
-    
-[NeMo I 2026-06-27 06:32:25 save_restore_connector:285] Model SortformerEncLabelModel was successfully restored from /workspace/.hf_home/hub/models--nvidia--diar_streaming_sortformer_4spk-v2.1/snapshots/fafaab5faa1617a0ca52d38dd3dc4bd636800d3d/diar_streaming_sortformer_4spk-v2.1.nemo.
-[load] done in 7.8s
-[NeMo W 2026-06-27 06:32:25 sortformer_modules:179] spkcache_update_period (300) is less than chunk_len (340). The effective update period will be 340.
-[cfg] latency=high chunk_len=340 right_ctx=40 fifo_len=40 spkcache_len=188
-[audio] R8005_M8009.wav sr=16000 ch=1 dur=1777.0s
-[NeMo I 2026-06-27 06:32:25 vad_utils:81] No postprocessing YAML file has been provided. Default postprocessing configurations will be applied.
-[NeMo W 2026-06-27 06:32:25 dataloader:826] The following configuration keys are ignored by Lhotse dataloader: session_len_sec,num_spks,soft_label_thres
-Diarizing: 0it [00:00, ?it/s]
-Streaming Steps:   0%|          | 0/66 [00:00<?, ?it/s][A
-Streaming Steps:   2%|▏         | 1/66 [00:00<00:34,  1.89it/s][A
-Streaming Steps:   5%|▍         | 3/66 [00:00<00:11,  5.58it/s][A
-Streaming Steps:   8%|▊         | 5/66 [00:00<00:06,  8.81it/s][A
-Streaming Steps:  11%|█         | 7/66 [00:00<00:05, 11.50it/s][A
-Streaming Steps:  14%|█▎        | 9/66 [00:00<00:04, 13.62it/s][A
-Streaming Steps:  17%|█▋        | 11/66 [00:01<00:03, 15.25it/s][A
-Streaming Steps:  20%|█▉        | 13/66 [00:01<00:03, 16.47it/s][A
-Streaming Steps:  23%|██▎       | 15/66 [00:01<00:02, 17.36it/s][A
-Streaming Steps:  26%|██▌       | 17/66 [00:01<00:02, 18.01it/s][A
-Streaming Steps:  29%|██▉       | 19/66 [00:01<00:02, 18.42it/s][A
-Streaming Steps:  32%|███▏      | 21/66 [00:01<00:02, 18.77it/s][A
-Streaming Steps:  35%|███▍      | 23/66 [00:01<00:02, 19.02it/s][A
-Streaming Steps:  38%|███▊      | 25/66 [00:01<00:02, 19.18it/s][A
-Streaming Steps:  41%|████      | 27/66 [00:01<00:02, 19.31it/s][A
-Streaming Steps:  44%|████▍     | 29/66 [00:01<00:01, 19.38it/s][A
-Streaming Steps:  47%|████▋     | 31/66 [00:02<00:01, 19.34it/s][A
-Streaming Steps:  50%|█████     | 33/66 [00:02<00:01, 19.27it/s][A
-Streaming Steps:  53%|█████▎    | 35/66 [00:02<00:01, 19.34it/s][A
-Streaming Steps:  56%|█████▌    | 37/66 [00:02<00:01, 19.42it/s][A
-Streaming Steps:  59%|█████▉    | 39/66 [00:02<00:01, 19.45it/s][A
-Streaming Steps:  62%|██████▏   | 41/66 [00:02<00:01, 19.51it/s][A
-Streaming Steps:  65%|██████▌   | 43/66 [00:02<00:01, 19.54it/s][A
-Streaming Steps:  68%|██████▊   | 45/66 [00:02<00:01, 19.57it/s][A
-Streaming Steps:  71%|███████   | 47/66 [00:02<00:00, 19.57it/s][A
-Streaming Steps:  74%|███████▍  | 49/66 [00:02<00:00, 19.59it/s][A
-Streaming Steps:  77%|███████▋  | 51/66 [00:03<00:00, 19.61it/s][A
-Streaming Steps:  80%|████████  | 53/66 [00:03<00:00, 19.63it/s][A
-Streaming Steps:  83%|████████▎ | 55/66 [00:03<00:00, 19.64it/s][A
-Streaming Steps:  86%|████████▋ | 57/66 [00:03<00:00, 19.64it/s][A
-Streaming Steps:  89%|████████▉ | 59/66 [00:03<00:00, 19.64it/s][A
-Streaming Steps:  92%|█████████▏| 61/66 [00:03<00:00, 19.66it/s][A
-Streaming Steps:  95%|█████████▌| 63/66 [00:03<00:00, 19.66it/s][A
-Streaming Steps:  98%|█████████▊| 65/66 [00:03<00:00, 19.64it/s][AStreaming Steps: 100%|██████████| 66/66 [00:03<00:00, 17.06it/s]
-Diarizing: 1it [00:09,  9.35s/it]Diarizing: 1it [00:09,  9.35s/it]
-[infer] done in 9.4s  (RTF=0.0053, 189.5x realtime)
-
-=== SUMMARY ===
-{
-  "uri": "R8005_M8009",
-  "audio": "/workspace/speaker_diarization_benchmark/Alimeeting/Far/wavs/R8005_M8009.wav",
-  "model": "nvidia/diar_streaming_sortformer_4spk-v2.1",
-  "latency_preset": "high",
-  "audio_duration_s": 1776.99,
-  "infer_seconds": 9.38,
-  "rtf": 0.00528,
-  "num_segments": 1936,
-  "pred_speakers": [
-    "speaker_0",
-    "speaker_1",
-    "speaker_2",
-    "speaker_3"
-  ],
-  "num_pred_speakers": 4,
-  "total_pred_speech_s": 2573.44,
-  "probs_shape": [
-    1,
-    22213,
-    4
-  ],
-  "frame_sec": 0.08
-}
-
-First 8 predicted segments:
-    8.080 9.520 speaker_0
-    10.160 12.000 speaker_0
-    12.240 14.480 speaker_0
-    14.960 15.680 speaker_0
-    16.400 21.040 speaker_0
-    21.280 23.920 speaker_0
-    24.480 26.320 speaker_0
-    26.720 29.040 speaker_0
-
-[out] /workspace/sortformer_diar/out/R8005_M8009.pred.rttm
-[out] /workspace/sortformer_diar/out/R8005_M8009.probs.npy
-[out] /workspace/sortformer_diar/out/R8005_M8009.meta.json
-RUN_EXIT=0

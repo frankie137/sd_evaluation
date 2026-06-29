@@ -34,7 +34,6 @@ DATASET_CFG = {
     "AMI":            dict(collar=0.0,  skip_overlap=False, batch=1),
     "AVA-AVD":        dict(collar=0.25, skip_overlap=False, batch=2),
     "Alimeeting":     dict(collar=0.0,  skip_overlap=False, batch=1),
-    "CALLHOME":       dict(collar=0.25, skip_overlap=False, batch=2),
     "MSDWild":        dict(collar=0.25, skip_overlap=False, batch=4),
     "MagicData-RAMC": dict(collar=0.25, skip_overlap=False, batch=1),
     "NOTSOFAR":       dict(collar=0.0,  skip_overlap=False, batch=2),
