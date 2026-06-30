@@ -20,29 +20,35 @@ from pathlib import Path
 
 from diar_eval import evaluate_collection, load_rttm
 
-ROOT = Path("/workspace/speaker_diarization_benchmark")
+ROOT = Path("/workspace/sd_full_benchmark")
 PRED_ROOT = Path("/workspace/sortformer_diar/out/preds")
 OUT_DIR = Path("/workspace/sortformer_diar/out")
 MODEL = "nvidia/diar_streaming_sortformer_4spk-v2.1"
 CHUNK_FILES = 64   # diarize this many files per call, then write RTTMs (resumable)
+# Post-processing (onset/offset/padding/min-duration) required to reproduce the
+# DER reported on the NeMo model card; by default diarize() only binarizes.
+POSTPROC_YAML = "/workspace/sd_evaluation/sortformer_postprocess.yaml"
 
 # Per-dataset scoring parameters. Default: collar=0.25, skip_overlap=False.
 # AMI / Alimeeting / NOTSOFAR use collar=0. `batch` is the inference batch size.
 DEFAULT_CFG = dict(collar=0.25, skip_overlap=False, batch=1)
 DATASET_CFG = {
-    "AISHELL-4":      dict(collar=0.25, skip_overlap=False, batch=1),
-    "AMI":            dict(collar=0.0,  skip_overlap=False, batch=1),
-    "AVA-AVD":        dict(collar=0.25, skip_overlap=False, batch=2),
-    "Alimeeting":     dict(collar=0.0,  skip_overlap=False, batch=1),
-    "MSDWild":        dict(collar=0.25, skip_overlap=False, batch=4),
-    "MagicData-RAMC": dict(collar=0.25, skip_overlap=False, batch=1),
-    "NOTSOFAR":       dict(collar=0.0,  skip_overlap=False, batch=2),
-    "VoxConverse":    dict(collar=0.25, skip_overlap=False, batch=1),
+    "AISHELL-4":        dict(collar=0.25, skip_overlap=False, batch=1),
+    "AMI":              dict(collar=0.0,  skip_overlap=False, batch=1),
+    # AMI annotation variants share AMI's scoring convention (collar=0).
+    "AMI_v1.6.2":       dict(collar=0.0,  skip_overlap=False, batch=1),
+    "AMI_forced_align": dict(collar=0.0,  skip_overlap=False, batch=1),
+    "AVA-AVD":          dict(collar=0.25, skip_overlap=False, batch=2),
+    "Alimeeting":       dict(collar=0.0,  skip_overlap=False, batch=1),
+    "MSDWild":          dict(collar=0.25, skip_overlap=False, batch=4),
+    "MagicData-RAMC":   dict(collar=0.25, skip_overlap=False, batch=1),
+    "NOTSOFAR":         dict(collar=0.0,  skip_overlap=False, batch=2),
+    "VoxConverse":      dict(collar=0.25, skip_overlap=False, batch=1),
 }
 # Datasets scored as one row (no <=4 / >4 split).
-EXEMPT = {"Alimeeting", "AMI", "MagicData-RAMC"}
+EXEMPT = {"Alimeeting", "AMI", "AMI_v1.6.2", "AMI_forced_align", "MagicData-RAMC"}
 # Datasets reported per leaf collection (separate rows) instead of pooled.
-SPLIT_BY_LEAF = {"AMI", "Alimeeting"}
+SPLIT_BY_LEAF = {"AMI", "AMI_v1.6.2", "AMI_forced_align", "Alimeeting"}
 
 
 def cfg_for(dataset):
@@ -111,10 +117,11 @@ def write_rttm(seg_lines, uri, out_path):
                     f"<NA> <NA> {spk} <NA> <NA>\n")
 
 
-def infer_all(limit_files=None, only_datasets=None):
+def infer_all(limit_files=None, only_datasets=None, postprocessing_yaml=None):
     import soundfile as sf
     model = load_model()
-    print("[infer] model loaded\n", flush=True)
+    print(f"[infer] model loaded; postprocessing={'on' if postprocessing_yaml else 'off'}\n",
+          flush=True)
     total_new = 0
     for name, wavs, _ in find_collections():
         ds = dataset_of(name)
@@ -128,22 +135,19 @@ def infer_all(limit_files=None, only_datasets=None):
         if not todo:
             print(f"[infer] {name}: all {len(wav_files)} cached, skip", flush=True)
             continue
-        bs = cfg_for(ds).get("batch", 1)
         dur = sum(sf.info(str(w)).duration for w in todo)
-        print(f"[infer] {name}: {len(todo)} files ({dur/3600:.2f}h) bs={bs} ...",
+        print(f"[infer] {name}: {len(todo)} files ({dur/3600:.2f}h) "
+              f"bs=1 postproc={'on' if postprocessing_yaml else 'off'} ...",
               flush=True)
         t0 = time.time()
         # Process in chunks and write RTTMs after each chunk, so an interruption
-        # loses at most one chunk (the whole-collection call would lose everything).
+        # loses at most one chunk. batch_size=1 + post-processing reproduces the
+        # NeMo model-card DER (per the NeMo diarization configs doc).
         for i in range(0, len(todo), CHUNK_FILES):
             sub = todo[i:i + CHUNK_FILES]
-            try:
-                preds = model.diarize(audio=[str(w) for w in sub],
-                                      batch_size=bs, verbose=False)
-            except Exception as e:
-                print(f"[infer] {name}: chunk failed ({e}); retry bs=1", flush=True)
-                preds = model.diarize(audio=[str(w) for w in sub],
-                                      batch_size=1, verbose=False)
+            preds = model.diarize(audio=[str(w) for w in sub],
+                                  batch_size=1, verbose=False,
+                                  postprocessing_yaml=postprocessing_yaml)
             for w, seg_lines in zip(sub, preds):
                 write_rttm(seg_lines, w.stem, pred_dir / (w.stem + ".rttm"))
             if len(todo) > CHUNK_FILES:
@@ -229,23 +233,30 @@ def main():
                     help="comma-separated dataset names to limit to")
     ap.add_argument("--limit-files", type=int, default=None,
                     help="only first N files per collection (smoke test)")
+    ap.add_argument("--table", default=str(OUT_DIR / "benchmark_table.md"),
+                    help="output markdown table path")
+    ap.add_argument("--json", default=str(OUT_DIR / "benchmark.json"),
+                    help="output json path")
+    ap.add_argument("--postprocessing-yaml", default=POSTPROC_YAML,
+                    help="post-processing params to reproduce model-card DER; "
+                         "pass '' to disable (binarization only)")
     args = ap.parse_args()
 
     stage = "score" if args.score_only else args.stage
     only = set(args.datasets.split(",")) if args.datasets else None
 
     if stage in ("all", "infer"):
-        infer_all(limit_files=args.limit_files, only_datasets=only)
+        infer_all(limit_files=args.limit_files, only_datasets=only,
+                  postprocessing_yaml=(args.postprocessing_yaml or None))
     if stage in ("all", "score"):
         print("\n=== scoring ===", flush=True)
         rows = score_all(only_datasets=only, limit_files=args.limit_files)
         table = render_table(rows)
-        OUT_DIR.mkdir(parents=True, exist_ok=True)
-        (OUT_DIR / "benchmark_table.md").write_text(table)
-        (OUT_DIR / "benchmark.json").write_text(json.dumps(rows, indent=2))
+        Path(args.table).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.table).write_text(table)
+        Path(args.json).write_text(json.dumps(rows, indent=2))
         print("\n" + table, flush=True)
-        print(f"saved -> {OUT_DIR/'benchmark_table.md'} , {OUT_DIR/'benchmark.json'}",
-              flush=True)
+        print(f"saved -> {args.table} , {args.json}", flush=True)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,13 @@
+# Post-processing parameters to reproduce the DER reported on the NeMo model card
+# for nvidia/diar_streaming_sortformer_4spk-v2.1.
+# Source: https://docs.nvidia.com/nemo-framework/.../speaker_diarization/configs.html
+# By default diarize() only binarizes (post-processing bypassed); these onset/
+# offset thresholds, paddings and min-duration filters are required to match the
+# card numbers. Use batch_size=1 for the longest inference window / best accuracy.
+parameters:
+  onset: 0.64          # threshold to start a speech segment
+  offset: 0.74         # threshold to end a speech segment
+  pad_onset: 0.06      # seconds added before each segment
+  pad_offset: 0.0      # seconds added after each segment
+  min_duration_on: 0.1    # drop speech segments shorter than this
+  min_duration_off: 0.15  # drop silences shorter than this (merge across)
