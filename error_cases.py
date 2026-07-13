@@ -26,7 +26,7 @@ from pyannote.metrics.diarization import DiarizationErrorRate
 
 from benchmark import cfg_for
 from diar_eval import load_rttm
-from window_attribution import OUT_ROOT, pred_dir_for
+from window_attribution import OUT_ROOT, PRED_ROOT
 
 ROOT = Path("/workspace/sd_full_benchmark")
 ROWS = ["AMI_forced_align/IHM", "AMI_forced_align/SDM",
@@ -99,7 +99,7 @@ def case_detail(case):
     col = row  # collection path == row for these leaf-split rows
     ref_path = ROOT / col / "rttms" / f"{key}.rttm"
     wav_path = ROOT / col / "wavs" / f"{key}.wav"
-    pred_path = pred_dir_for(col) / f"{key}.rttm"
+    pred_path = PRED_ROOT / col / f"{key}.rttm"
     ref = load_rttm(ref_path, uri=key)
     hyp = load_rttm(pred_path, uri=key)
     cfg = cfg_for(row.split("/")[0])

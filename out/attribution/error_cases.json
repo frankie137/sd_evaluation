@@ -1,0 +1,212 @@
+[
+  {
+    "row": "AMI_forced_align/IHM",
+    "key": "TS3003c",
+    "t0": 810.0,
+    "t1": 900.0,
+    "reasons": [
+      "Miss 最高"
+    ],
+    "miss": 47.19,
+    "fa": 0.01,
+    "conf": 11.14,
+    "ref": 58.33,
+    "wav": "/workspace/sd_full_benchmark/AMI_forced_align/IHM/wavs/TS3003c.wav"
+  },
+  {
+    "row": "AMI_forced_align/IHM",
+    "key": "IS1009c",
+    "t0": 450.0,
+    "t1": 540.0,
+    "reasons": [
+      "Confusion 最高"
+    ],
+    "miss": 0.58,
+    "fa": 1.12,
+    "conf": 66.49,
+    "ref": 69.03,
+    "wav": "/workspace/sd_full_benchmark/AMI_forced_align/IHM/wavs/IS1009c.wav"
+  },
+  {
+    "row": "AMI_forced_align/IHM",
+    "key": "EN2002b",
+    "t0": 270.0,
+    "t1": 360.0,
+    "reasons": [
+      "FA 最高"
+    ],
+    "miss": 15.09,
+    "fa": 9.4,
+    "conf": 4.27,
+    "ref": 87.24,
+    "wav": "/workspace/sd_full_benchmark/AMI_forced_align/IHM/wavs/EN2002b.wav"
+  },
+  {
+    "row": "AMI_forced_align/SDM",
+    "key": "EN2002d",
+    "t0": 0.0,
+    "t1": 90.0,
+    "reasons": [
+      "Miss 最高"
+    ],
+    "miss": 25.91,
+    "fa": 1.67,
+    "conf": 5.29,
+    "ref": 33.68,
+    "wav": "/workspace/sd_full_benchmark/AMI_forced_align/SDM/wavs/EN2002d.wav"
+  },
+  {
+    "row": "AMI_forced_align/SDM",
+    "key": "ES2004b",
+    "t0": 630.0,
+    "t1": 720.0,
+    "reasons": [
+      "Confusion 最高"
+    ],
+    "miss": 1.63,
+    "fa": 3.15,
+    "conf": 66.45,
+    "ref": 68.08,
+    "wav": "/workspace/sd_full_benchmark/AMI_forced_align/SDM/wavs/ES2004b.wav"
+  },
+  {
+    "row": "AMI_forced_align/SDM",
+    "key": "EN2002b",
+    "t0": 1710.0,
+    "t1": 1786.9,
+    "reasons": [
+      "FA 最高"
+    ],
+    "miss": 14.13,
+    "fa": 16.23,
+    "conf": 2.45,
+    "ref": 64.69,
+    "wav": "/workspace/sd_full_benchmark/AMI_forced_align/SDM/wavs/EN2002b.wav"
+  },
+  {
+    "row": "Alimeeting/Far",
+    "key": "R8005_M8009",
+    "t0": 270.0,
+    "t1": 360.0,
+    "reasons": [
+      "Miss 最高"
+    ],
+    "miss": 21.41,
+    "fa": 8.67,
+    "conf": 8.03,
+    "ref": 165.06,
+    "wav": "/workspace/sd_full_benchmark/Alimeeting/Far/wavs/R8005_M8009.wav"
+  },
+  {
+    "row": "Alimeeting/Far",
+    "key": "R8008_M8016",
+    "t0": 1260.0,
+    "t1": 1350.0,
+    "reasons": [
+      "Confusion 最高"
+    ],
+    "miss": 6.01,
+    "fa": 3.03,
+    "conf": 18.64,
+    "ref": 69.22,
+    "wav": "/workspace/sd_full_benchmark/Alimeeting/Far/wavs/R8008_M8016.wav"
+  },
+  {
+    "row": "Alimeeting/Far",
+    "key": "R8004_M8006",
+    "t0": 1170.0,
+    "t1": 1260.0,
+    "reasons": [
+      "FA 最高"
+    ],
+    "miss": 14.74,
+    "fa": 19.87,
+    "conf": 6.11,
+    "ref": 145.83,
+    "wav": "/workspace/sd_full_benchmark/Alimeeting/Far/wavs/R8004_M8006.wav"
+  },
+  {
+    "row": "Alimeeting/Near",
+    "key": "R8004_M8006",
+    "t0": 1170.0,
+    "t1": 1260.0,
+    "reasons": [
+      "Miss 最高"
+    ],
+    "miss": 18.97,
+    "fa": 14.82,
+    "conf": 9.68,
+    "ref": 145.83,
+    "wav": "/workspace/sd_full_benchmark/Alimeeting/Near/wavs/R8004_M8006.wav"
+  },
+  {
+    "row": "Alimeeting/Near",
+    "key": "R8008_M8014",
+    "t0": 90.0,
+    "t1": 180.0,
+    "reasons": [
+      "Confusion 最高"
+    ],
+    "miss": 3.08,
+    "fa": 2.21,
+    "conf": 20.77,
+    "ref": 78.39,
+    "wav": "/workspace/sd_full_benchmark/Alimeeting/Near/wavs/R8008_M8014.wav"
+  },
+  {
+    "row": "Alimeeting/Near",
+    "key": "R8005_M8009",
+    "t0": 900.0,
+    "t1": 990.0,
+    "reasons": [
+      "FA 最高"
+    ],
+    "miss": 8.79,
+    "fa": 14.83,
+    "conf": 5.43,
+    "ref": 122.84,
+    "wav": "/workspace/sd_full_benchmark/Alimeeting/Near/wavs/R8005_M8009.wav"
+  },
+  {
+    "row": "MagicData-RAMC",
+    "key": "CTS-CN-F2F-2019-11-15-144",
+    "t0": 990.0,
+    "t1": 1080.0,
+    "reasons": [
+      "Miss 最高"
+    ],
+    "miss": 17.3,
+    "fa": 7.74,
+    "conf": 5.58,
+    "ref": 40.37,
+    "wav": "/workspace/sd_full_benchmark/MagicData-RAMC/wavs/CTS-CN-F2F-2019-11-15-144.wav"
+  },
+  {
+    "row": "MagicData-RAMC",
+    "key": "CTS-CN-F2F-2019-11-15-123",
+    "t0": 1080.0,
+    "t1": 1170.0,
+    "reasons": [
+      "Confusion 最高"
+    ],
+    "miss": 4.67,
+    "fa": 3.95,
+    "conf": 63.97,
+    "ref": 71.03,
+    "wav": "/workspace/sd_full_benchmark/MagicData-RAMC/wavs/CTS-CN-F2F-2019-11-15-123.wav"
+  },
+  {
+    "row": "MagicData-RAMC",
+    "key": "CTS-CN-F2F-2019-11-15-17",
+    "t0": 990.0,
+    "t1": 1080.0,
+    "reasons": [
+      "FA 最高"
+    ],
+    "miss": 1.88,
+    "fa": 28.86,
+    "conf": 0.0,
+    "ref": 53.39,
+    "wav": "/workspace/sd_full_benchmark/MagicData-RAMC/wavs/CTS-CN-F2F-2019-11-15-17.wav"
+  }
+]

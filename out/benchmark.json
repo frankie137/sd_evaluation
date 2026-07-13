@@ -17,10 +17,10 @@
     "n_files": 16,
     "collar": 0.0,
     "skip_overlap": false,
-    "der": 15.32,
-    "miss": 7.18,
-    "fa": 5.1,
-    "conf": 3.05,
+    "der": 15.37,
+    "miss": 7.27,
+    "fa": 5.09,
+    "conf": 3.01,
     "ref_s": 23930.54
   },
   {
@@ -29,10 +29,10 @@
     "n_files": 16,
     "collar": 0.0,
     "skip_overlap": false,
-    "der": 18.41,
-    "miss": 8.82,
-    "fa": 4.9,
-    "conf": 4.69,
+    "der": 18.79,
+    "miss": 8.05,
+    "fa": 5.33,
+    "conf": 5.41,
     "ref_s": 23930.54
   },
   {

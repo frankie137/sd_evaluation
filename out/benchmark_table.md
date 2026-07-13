@@ -1,8 +1,8 @@
 | Dataset | Subset | #files | collar | DER % | Miss % | FA % | Conf % |
 |---|---|--:|--:|--:|--:|--:|--:|
 | AISHELL-4 | >4 spk | 20 | 0.25 | 28.12 | 7.70 | 1.94 | 18.48 |
-| AMI_forced_align/IHM | all | 16 | 0.0 | 15.32 | 7.18 | 5.10 | 3.05 |
-| AMI_forced_align/SDM | all | 16 | 0.0 | 18.41 | 8.82 | 4.90 | 4.69 |
+| AMI_forced_align/IHM | all | 16 | 0.0 | 15.37 | 7.27 | 5.09 | 3.01 |
+| AMI_forced_align/SDM | all | 16 | 0.0 | 18.79 | 8.05 | 5.33 | 5.41 |
 | AVA-AVD | <=4 spk | 3 | 0.25 | 41.16 | 13.69 | 5.58 | 21.89 |
 | AVA-AVD | >4 spk | 51 | 0.25 | 49.10 | 18.11 | 6.53 | 24.47 |
 | Alimeeting/Far | all | 20 | 0.0 | 13.59 | 7.05 | 4.91 | 1.63 |
