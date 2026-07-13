@@ -50,7 +50,7 @@
 <div class="card">
   <div class="controls">
     <div>
-      <div class="ctl-title">数据集 / 行（AMI_forced_align 与 AMI_v1.6.2 为同一音频的两套标注，默认只计入后者）</div>
+      <div class="ctl-title">数据集 / 行</div>
       <div class="rowchecks" id="rowchecks"></div>
     </div>
     <div>
@@ -114,7 +114,7 @@ const PALETTE = ["#4269d0","#efb118","#ff725c","#6cc5b0","#3ca951","#ff8ab7",
 const CN = { der:"DER", miss:"Miss", fa:"FA", conf:"Confusion", drift:"映射漂移" };
 
 const state = {
-  rows: new Set(ROWS.map((r,i)=>i).filter(i=>!ROWS[i].startsWith("AMI_forced_align"))),
+  rows: new Set(ROWS.map((r,i)=>i)),
   mode: "micro", metric: "der", drillSess: null, sortKey: "der",
 };
 

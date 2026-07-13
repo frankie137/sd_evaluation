@@ -52,9 +52,6 @@ from diar_eval import load_rttm
 
 PRED_ROOT = Path("/workspace/sd_evaluation/out/preds")
 OUT_ROOT = Path("/workspace/sd_evaluation/out/attribution")
-# Prediction dirs were produced before the AMI dataset was split into
-# annotation variants; both variants score the same predictions.
-PRED_ALIAS = {"AMI_v1.6.2": "AMI", "AMI_forced_align": "AMI"}
 
 WINDOW_SEC = 90.0
 FRAME = 0.01            # activity-mask resolution (s)
@@ -62,18 +59,6 @@ E_HOP, E_WIN = 0.016, 0.032   # energy framing (s)
 TURN_MERGE_GAP = 0.5    # same-speaker segments closer than this form one turn
 SHORT_TURN_SEC = 1.0
 REENTRY_GAP_SEC = 30.0
-
-
-def pred_dir_for(collection: str) -> Path:
-    p = PRED_ROOT / collection
-    if p.is_dir():
-        return p
-    parts = collection.split("/")
-    if parts[0] in PRED_ALIAS:
-        alias = PRED_ROOT / "/".join([PRED_ALIAS[parts[0]]] + parts[1:])
-        if alias.is_dir():
-            return alias
-    return p
 
 
 # --------------------------------------------------------------------------- #
@@ -350,7 +335,7 @@ def build_tasks(window, only_datasets=None, limit_files=None):
             continue
         cfg = cfg_for(ds)
         row = name if ds in SPLIT_BY_LEAF else ds
-        pred_dir = pred_dir_for(name)
+        pred_dir = PRED_ROOT / name
         refs = sorted(rttms.glob("*.rttm"))
         if limit_files:
             refs = refs[:limit_files]

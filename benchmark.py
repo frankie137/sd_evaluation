@@ -21,8 +21,8 @@ from pathlib import Path
 from diar_eval import evaluate_collection, load_rttm
 
 ROOT = Path("/workspace/sd_full_benchmark")
-PRED_ROOT = Path("/workspace/sortformer_diar/out/preds")
-OUT_DIR = Path("/workspace/sortformer_diar/out")
+PRED_ROOT = Path("/workspace/sd_evaluation/out/preds")
+OUT_DIR = Path("/workspace/sd_evaluation/out")
 MODEL = "nvidia/diar_streaming_sortformer_4spk-v2.1"
 CHUNK_FILES = 64   # diarize this many files per call, then write RTTMs (resumable)
 # Post-processing (onset/offset/padding/min-duration) required to reproduce the
@@ -35,8 +35,7 @@ DEFAULT_CFG = dict(collar=0.25, skip_overlap=False, batch=1)
 DATASET_CFG = {
     "AISHELL-4":        dict(collar=0.25, skip_overlap=False, batch=1),
     "AMI":              dict(collar=0.0,  skip_overlap=False, batch=1),
-    # AMI annotation variants share AMI's scoring convention (collar=0).
-    "AMI_v1.6.2":       dict(collar=0.0,  skip_overlap=False, batch=1),
+    # Forced-align AMI annotations share AMI's scoring convention (collar=0).
     "AMI_forced_align": dict(collar=0.0,  skip_overlap=False, batch=1),
     "AVA-AVD":          dict(collar=0.25, skip_overlap=False, batch=2),
     "Alimeeting":       dict(collar=0.0,  skip_overlap=False, batch=1),
@@ -46,9 +45,13 @@ DATASET_CFG = {
     "VoxConverse":      dict(collar=0.25, skip_overlap=False, batch=1),
 }
 # Datasets scored as one row (no <=4 / >4 split).
-EXEMPT = {"Alimeeting", "AMI", "AMI_v1.6.2", "AMI_forced_align", "MagicData-RAMC"}
+EXEMPT = {"Alimeeting", "AMI", "AMI_forced_align", "MagicData-RAMC"}
 # Datasets reported per leaf collection (separate rows) instead of pooled.
-SPLIT_BY_LEAF = {"AMI", "AMI_v1.6.2", "AMI_forced_align", "Alimeeting"}
+SPLIT_BY_LEAF = {"AMI", "AMI_forced_align", "Alimeeting"}
+# Datasets present under ROOT but excluded from the whole pipeline.
+# AMI_v1.6.2 is the older, less accurate annotation; AMI_forced_align is the
+# annotation of record for AMI audio.
+EXCLUDED_DATASETS = {"AMI_v1.6.2"}
 
 
 def cfg_for(dataset):
@@ -61,7 +64,8 @@ def cfg_for(dataset):
 def find_collections():
     """Every (name, wavs_dir, rttms_dir) where name is the path under ROOT.
 
-    Hidden directories (e.g. .cache/huggingface) are skipped.
+    Hidden directories (e.g. .cache/huggingface) and EXCLUDED_DATASETS are
+    skipped.
     """
     cols = []
     for wavs in sorted(ROOT.rglob("wavs")):
@@ -70,6 +74,8 @@ def find_collections():
             continue
         rel = wavs.parent.relative_to(ROOT)
         if any(part.startswith(".") for part in rel.parts):
+            continue
+        if rel.parts[0] in EXCLUDED_DATASETS:
             continue
         cols.append((str(rel), wavs, rttms))
     return cols

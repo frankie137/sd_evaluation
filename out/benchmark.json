@@ -36,30 +36,6 @@
     "ref_s": 23930.54
   },
   {
-    "dataset": "AMI_v1.6.2/IHM",
-    "subset": "all",
-    "n_files": 16,
-    "collar": 0.0,
-    "skip_overlap": false,
-    "der": 28.71,
-    "miss": 25.0,
-    "fa": 1.29,
-    "conf": 2.42,
-    "ref_s": 30713.92
-  },
-  {
-    "dataset": "AMI_v1.6.2/SDM",
-    "subset": "all",
-    "n_files": 16,
-    "collar": 0.0,
-    "skip_overlap": false,
-    "der": 31.44,
-    "miss": 26.48,
-    "fa": 1.35,
-    "conf": 3.61,
-    "ref_s": 30713.92
-  },
-  {
     "dataset": "AVA-AVD",
     "subset": "<=4 spk",
     "n_files": 3,

@@ -12,6 +12,8 @@ import argparse
 import json
 from pathlib import Path
 
+from benchmark import EXEMPT, dataset_of
+
 OUT_ROOT = Path("/workspace/sd_evaluation/out/attribution")
 TEMPLATE = Path(__file__).parent / "attribution_report_template.html"
 
@@ -30,6 +32,11 @@ def collect(records_dir: Path):
         rec = json.loads(path.read_text())
         window_sec = rec["window"]
         row = rec["row"]
+        # Same speaker-count split as benchmark.py: non-EXEMPT datasets are
+        # reported as two subsets, <=4 and >4 reference speakers.
+        if dataset_of(row) not in EXEMPT:
+            subset = "<=4 spk" if rec["n_ref_spk"] <= 4 else ">4 spk"
+            row = f"{row} ({subset})"
         if row not in row_idx:
             row_idx[row] = len(rows)
             rows.append(row)
@@ -75,6 +82,14 @@ def collect(records_dir: Path):
             "nspk": rec["n_ref_spk"], "nhyp": rec["n_hyp_spk"],
             **{k: round(v, 2) for k, v in sums.items()},
         })
+    # Sort rows alphabetically so both subsets of a dataset sit next to each
+    # other in the legend, then remap the row indices accordingly.
+    order = sorted(range(len(rows)), key=lambda i: rows[i])
+    remap = {old: new for new, old in enumerate(order)}
+    rows = [rows[i] for i in order]
+    win["r"] = [remap[r] for r in win["r"]]
+    for sess in sessions:
+        sess["r"] = remap[sess["r"]]
     return {"rows": rows, "sessions": sessions, "win": win, "spk": spk,
             "window": window_sec}
 
