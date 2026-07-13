@@ -114,11 +114,7 @@ const PALETTE = ["#4269d0","#efb118","#ff725c","#6cc5b0","#3ca951","#ff8ab7",
 const CN = { der:"DER", miss:"Miss", fa:"FA", conf:"Confusion", drift:"映射漂移" };
 
 const state = {
-<<<<<<< HEAD
-  rows: new Set(ROWS.map((r,i)=>i)),
-=======
   rows: new Set(ROWS.map((r,i)=>i).filter(i=>!ROWS[i].startsWith("AMI_forced_align"))),
->>>>>>> ec3f8908db495c48acf4a344b7b1a0e73d1b0083
   mode: "micro", metric: "der", drillSess: null, sortKey: "der",
 };
 
