@@ -50,8 +50,8 @@ from pyannote.metrics.identification import IdentificationErrorRate
 from benchmark import SPLIT_BY_LEAF, cfg_for, dataset_of, find_collections
 from diar_eval import load_rttm
 
-PRED_ROOT = Path("/workspace/sd_evaluation/out/preds")
-OUT_ROOT = Path("/workspace/sd_evaluation/out/attribution")
+PRED_ROOT = Path("./out/preds")
+OUT_ROOT = Path("./out/attribution")
 # Prediction dirs were produced before the AMI dataset was split into
 # annotation variants; both variants score the same predictions.
 PRED_ALIAS = {"AMI_v1.6.2": "AMI", "AMI_forced_align": "AMI"}

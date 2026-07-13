@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>分离错误归因报告</title>
+<style>
+  :root {
+    --miss:#5b8fc9; --fa:#e8a13c; --conf:#d95f5f; --drift:#8862c8;
+    --ink:#1d2733; --mut:#68737f; --line:#e3e8ee; --bg:#f6f8fa; --card:#fff;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:24px 28px 80px; font:14px/1.55 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; color:var(--ink); background:var(--bg); }
+  h1 { font-size:21px; margin:0 0 4px; }
+  h2 { font-size:16px; margin:34px 0 10px; padding-top:18px; border-top:1px solid var(--line); }
+  .sub { color:var(--mut); font-size:12.5px; margin-bottom:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .controls { display:flex; flex-wrap:wrap; gap:10px 26px; align-items:flex-start; margin:14px 0; }
+  .rowchecks { display:flex; flex-wrap:wrap; gap:2px 14px; max-width:760px; }
+  .rowchecks label { white-space:nowrap; font-size:12.5px; cursor:pointer; }
+  .rowchecks .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; }
+  .ctl-title { font-weight:600; font-size:12px; color:var(--mut); margin-bottom:4px; }
+  .cards { display:flex; flex-wrap:wrap; gap:12px; margin:12px 0; }
+  .stat { min-width:118px; padding:10px 16px; }
+  .stat .v { font-size:22px; font-weight:650; }
+  .stat .l { font-size:12px; color:var(--mut); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(470px,1fr)); gap:14px; }
+  .panel h3 { font-size:13.5px; margin:0 0 2px; }
+  .panel .note { font-size:11.5px; color:var(--mut); margin-bottom:4px; }
+  svg { display:block; max-width:100%; }
+  svg text { font-family:inherit; }
+  .findings li { margin:3px 0; }
+  .findings b { color:#b3382e; }
+  table, .stat .v, svg text { font-variant-numeric:tabular-nums; }
+  table { border-collapse:collapse; width:100%; font-size:12.5px; }
+  th, td { padding:5px 9px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { color:var(--mut); font-weight:600; cursor:pointer; user-select:none; }
+  td:first-child, th:first-child, td:nth-child(2), th:nth-child(2) { text-align:left; }
+  tr.sess:hover { background:#eef4fb; cursor:pointer; }
+  tr.sel { background:#e2eefc; }
+  select, input[type=text] { font:inherit; padding:3px 6px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+  .legend { display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12px; margin:6px 0; }
+  .wide { overflow-x:auto; }
+</style>
+</head>
+<body>
+<h1>流式 Sortformer · 窗口级错误归因</h1>
+<div class="sub" id="meta"></div>
+
+<div class="card">
+  <div class="controls">
+    <div>
+      <div class="ctl-title">数据集 / 行（AMI_forced_align 与 AMI_v1.6.2 为同一音频的两套标注，默认只计入后者）</div>
+      <div class="rowchecks" id="rowchecks"></div>
+    </div>
+    <div>
+      <div class="ctl-title">聚合方式</div>
+      <label><input type="radio" name="mode" value="micro" checked> 汇总（按秒池化，长数据集权重大）</label><br>
+      <label><input type="radio" name="mode" value="macro"> 数据集等权（各行先池化再平均）</label>
+    </div>
+  </div>
+</div>
+
+<div class="cards" id="summary"></div>
+
+<h2>自动发现（当前筛选下偏离整体最显著的桶）</h2>
+<div class="sub">仅列出样本量足够（≥30 窗且参考语音 ≥0.5h）且某分量 ≥1.5× 整体的桶。</div>
+<div class="card findings"><ul id="findings"></ul></div>
+
+<h2>属性分桶 · DER 三分量</h2>
+<div class="sub">每根柱 = 该桶按当前聚合方式的 Miss/FA/Confusion（相对该桶参考语音时长的 %）；虚线 = 当前筛选整体 DER；柱顶 ×N 为该桶 DER 相对整体的倍数；柱下为窗口数与参考语音小时数。</div>
+<div class="grid" id="panels"></div>
+
+<h2>会话内时间轴</h2>
+<div class="sub">检验 speaker cache 的稳定性：错误率随会话进行的变化。「映射漂移」= 固定全档最优映射的 Confusion 减去逐窗口局部最优 Confusion，衡量说话人槽位漂移/标签闪烁的额外代价。</div>
+<div class="card">
+  指标：<select id="timeMetric">
+    <option value="der">DER</option><option value="miss">Miss</option>
+    <option value="fa">FA</option><option value="conf">Confusion</option>
+    <option value="drift">映射漂移 (Conf − Conf_local)</option>
+  </select>
+  <div class="legend" id="timeLegend"></div>
+  <h3 style="font-size:13px;margin:10px 0 2px">按绝对时间（距会话开始，分钟）</h3>
+  <div class="wide" id="timeAbs"></div>
+  <h3 style="font-size:13px;margin:14px 0 2px">按相对位置（会话十等分；仅时长 ≥ 5 窗的会话）</h3>
+  <div class="wide" id="timeRel"></div>
+</div>
+
+<h2>说话人归属动态（首次出现后的检出/归属延迟、闪烁）</h2>
+<div class="sub">检出延迟 = 首次发声后系统给出任意说话人标签的时间；归属延迟 = 给出「正确」（全档最优映射意义下）标签的时间。闪烁 = 该说话人独占语音段上预测标签的切换频率。</div>
+<div class="cards" id="spkcards"></div>
+<div class="grid">
+  <div class="card panel"><h3>首次出现后的延迟分布</h3><div class="note">占说话人数 %；「未归属」= 全程从未打对标签（含未被映射到任何输出槽位的说话人）</div><div id="latHist"></div></div>
+  <div class="card panel"><h3>标签闪烁频率（次/分钟，独占语音 ≥5s 的说话人）</h3><div id="flickHist"></div></div>
+  <div class="card panel"><h3>说话人纯度（独占语音上打对标签的帧占比）</h3><div id="purHist"></div></div>
+</div>
+
+<h2>会话明细与逐窗口时间线</h2>
+<div class="card">
+  <div style="margin-bottom:8px">按 DER 降序 · <input type="text" id="sessFilter" placeholder="按会话名过滤…"> <span class="sub" id="sessCount" style="display:inline"></span></div>
+  <div class="wide" style="max-height:340px;overflow-y:auto"><table id="sessTable"></table></div>
+  <div id="drillTitle" style="font-weight:600;margin:16px 0 4px"></div>
+  <div class="sub">柱 = 每窗口 Miss/FA/Conf（% 参考语音，封顶 150%）；绿线 = 重叠占比；▲ = 新说话人首次出现；● = 说话人 ≥30s 沉默后回归；黑色刻度 = 局部最优映射下的 Conf 上界（刻度到柱顶之间即映射漂移）。</div>
+  <div class="wide" id="drill"></div>
+</div>
+
+<script>
+"use strict";
+const D = {"rows":[],"sessions":[],"win":{"r":[],"s":[],"t0":[],"ref":[],"miss":[],"fa":[],"conf":[],"cl":[],"k":[],"sp":[],"ov":[],"tn":[],"ns":[],"re":[],"nw":[],"pos":[],"snr":[]},"spk":{"s":[],"map":[],"first":[],"det":[],"att":[],"solo":[],"pur":[],"mf":[],"sw":[]},"window":null};
+const W = D.win, S = D.sessions, ROWS = D.rows, K = D.spk;
+const NWIN = W.r.length;
+const PALETTE = ["#4269d0","#efb118","#ff725c","#6cc5b0","#3ca951","#ff8ab7",
+                 "#a463f2","#97bbf5","#9c6b4e","#01ab63","#e03231","#708090"];
+const CN = { der:"DER", miss:"Miss", fa:"FA", conf:"Confusion", drift:"映射漂移" };
+
+const state = {
+  rows: new Set(ROWS.map((r,i)=>i).filter(i=>!ROWS[i].startsWith("AMI_forced_align"))),
+  mode: "micro", metric: "der", drillSess: null, sortKey: "der",
+};
+
+// ---------------------------------------------------------------- helpers
+const fmt = (v,d=1)=> v==null||!isFinite(v) ? "–" : v.toFixed(d);
+const el = id => document.getElementById(id);
+function filteredIdx(){ const out=[]; for(let i=0;i<NWIN;i++) if(state.rows.has(W.r[i])) out.push(i); return out; }
+function accum(o,i){ o.ref+=W.ref[i]; o.miss+=W.miss[i]; o.fa+=W.fa[i]; o.conf+=W.conf[i]; o.cl+=W.cl[i]; o.n++; }
+function blank(){ return {ref:0,miss:0,fa:0,conf:0,cl:0,n:0}; }
+function rates(o){
+  if(o.ref < 1) return null;
+  return { der:(o.miss+o.fa+o.conf)/o.ref*100, miss:o.miss/o.ref*100,
+           fa:o.fa/o.ref*100, conf:o.conf/o.ref*100,
+           drift:(o.conf-o.cl)/o.ref*100, ref:o.ref, n:o.n };
+}
+// micro: pool all windows; macro: pool per row then average rows (ref>=60s)
+function groupRates(idxs){
+  if(state.mode==="micro"){ const o=blank(); idxs.forEach(i=>accum(o,i)); return rates(o); }
+  const per={}; idxs.forEach(i=>{ (per[W.r[i]] ??= blank()); accum(per[W.r[i]],i); });
+  const rs=Object.values(per).map(rates).filter(r=>r&&r.ref>=60);
+  if(!rs.length) return null;
+  const avg=k=>rs.reduce((a,r)=>a+r[k],0)/rs.length;
+  return { der:avg("der"),miss:avg("miss"),fa:avg("fa"),conf:avg("conf"),drift:avg("drift"),
+           ref:rs.reduce((a,r)=>a+r.ref,0), n:idxs.length };
+}
+
+// ---------------------------------------------------------------- panels
+const B=(lo,hi,label)=>({label,test:v=>v>lo&&v<=hi});
+const PANELS=[
+ {title:"重叠语音占比",note:"窗口内 ≥2 人同时说话的时长 / 语音时长",val:i=>W.ov[i],
+  buckets:[{label:"0",test:v=>v===0},B(0,.1,"0–10%"),B(.1,.3,"10–30%"),B(.3,9,">30%")]},
+ {title:"活跃说话人数",note:"窗口内在参考标注中发声的人数",val:i=>W.k[i],
+  buckets:[{label:"0(纯静音)",test:v=>v===0},{label:"1",test:v=>v===1},{label:"2",test:v=>v===2},
+           {label:"3",test:v=>v===3},{label:"4",test:v=>v===4},{label:"≥5",test:v=>v>=5}]},
+ {title:"平均 turn 时长",note:"与窗口相交的 turn（同人间隔≤0.5s 合并）的平均时长",val:i=>W.tn[i],
+  buckets:[B(-1,1,"<1s"),B(1,2,"1–2s"),B(2,4,"2–4s"),B(4,8,"4–8s"),B(8,1e9,"≥8s")]},
+ {title:"短插话（<1s turn）数量",note:"窗口内时长 <1s 的 turn 个数",val:i=>W.ns[i],
+  buckets:[{label:"0",test:v=>v===0},B(0,2,"1–2"),B(2,5,"3–5"),B(5,1e9,"≥6")]},
+ {title:"SNR 估计",note:"参考语音帧能量 vs 非语音噪声底（窗口内估计）",val:i=>W.snr[i],
+  buckets:[B(-1e9,0,"<0dB"),B(0,5,"0–5"),B(5,10,"5–10"),B(10,20,"10–20"),B(20,1e9,"≥20dB")]},
+ {title:"混响程度（会话级盲估计）",note:"能量包络自由衰减的 T60 代理值",val:i=>S[W.s[i]].rev,
+  buckets:[B(-1,0.5,"<0.5s"),B(0.5,0.7,"0.5–0.7"),B(0.7,0.9,"0.7–0.9"),B(0.9,9,"≥0.9s")]},
+ {title:"距会话开始时间",note:"窗口起点的绝对时间",val:i=>W.t0[i]/60,
+  buckets:[B(-1,1.5,"0–1.5min"),B(1.5,3,"1.5–3"),B(3,6,"3–6"),B(6,12,"6–12"),B(12,24,"12–24"),B(24,1e9,"≥24min")]},
+ {title:"说话人长沉默后回归",note:"窗口内是否有人在 ≥30s 沉默后再次发声",val:i=>W.re[i],
+  buckets:[{label:"无",test:v=>v===0},{label:"有回归",test:v=>v>0}]},
+ {title:"新说话人首次出现",note:"槽位分配时刻；首窗口单列（所有人都是新的）",
+  val:i=>W.t0[i]===0?2:(W.nw[i]>0?1:0),
+  buckets:[{label:"无新人",test:v=>v===0},{label:"有新人(非首窗)",test:v=>v===1},{label:"首窗口",test:v=>v===2}]},
+];
+
+function bucketize(idxs,panel){
+  const out=panel.buckets.map(()=>[]);
+  for(const i of idxs){
+    const v=panel.val(i); if(v==null) continue;
+    for(let b=0;b<panel.buckets.length;b++) if(panel.buckets[b].test(v)){ out[b].push(i); break; }
+  }
+  return out;
+}
+
+function stackedBarSVG(buckets,overall){
+  const wpx=470,hpx=252,L=42,R=8,T=26,BOT=46,IW=wpx-L-R,IH=hpx-T-BOT;
+  const vals=buckets.map(b=>b.r);
+  const ymax=Math.max(overall?overall.der:0,...vals.map(r=>r?r.der:0),1)*1.18;
+  const y=v=>T+IH-v/ymax*IH;
+  const n=buckets.length, bw=Math.min(64,IW/n*0.62);
+  let s=`<svg viewBox="0 0 ${wpx} ${hpx}">`;
+  const step=niceStep(ymax);
+  for(let v=0;v<=ymax;v+=step)
+    s+=`<line x1="${L}" x2="${wpx-R}" y1="${y(v)}" y2="${y(v)}" stroke="#eef1f5"/>
+        <text x="${L-5}" y="${y(v)+4}" font-size="10" fill="#8a94a0" text-anchor="end">${v}</text>`;
+  buckets.forEach((b,bi)=>{
+    const cx=L+IW/n*(bi+0.5), r=b.r;
+    if(r){
+      let y0=T+IH;
+      for(const c of ["miss","fa","conf"]){
+        const h=r[c]/ymax*IH;
+        s+=`<rect x="${cx-bw/2}" y="${y0-h}" width="${bw}" height="${Math.max(h,0)}" fill="var(--${c})">
+            <title>${b.label}\nDER ${fmt(r.der)}%  Miss ${fmt(r.miss)}%  FA ${fmt(r.fa)}%  Conf ${fmt(r.conf)}%\n漂移 ${fmt(r.drift)}%  n=${r.n} 窗  参考 ${(r.ref/3600).toFixed(1)}h</title></rect>`;
+        y0-=h;
+      }
+      if(overall&&overall.der>0.2){
+        const ratio=r.der/overall.der;
+        const col=ratio>=1.5?"#b3382e":ratio<=0.67?"#1a7f37":"#68737f";
+        s+=`<text x="${cx}" y="${y0-5}" font-size="10.5" font-weight="600" fill="${col}" text-anchor="middle">×${ratio.toFixed(1)}</text>`;
+      }
+    }
+    s+=`<text x="${cx}" y="${T+IH+14}" font-size="10.5" fill="#3c4650" text-anchor="middle">${b.label}</text>
+        <text x="${cx}" y="${T+IH+27}" font-size="9.5" fill="#8a94a0" text-anchor="middle">${r?r.n+"窗 "+(r.ref/3600).toFixed(1)+"h":"—"}</text>`;
+  });
+  if(overall) s+=`<line x1="${L}" x2="${wpx-R}" y1="${y(overall.der)}" y2="${y(overall.der)}" stroke="#333" stroke-dasharray="5 4"/>
+      <text x="${wpx-R}" y="${y(overall.der)-4}" font-size="10" fill="#333" text-anchor="end">整体 ${fmt(overall.der)}%</text>`;
+  return s+"</svg>";
+}
+function niceStep(m){ const raw=m/4, p=10**Math.floor(Math.log10(raw)); const c=raw/p;
+  return (c<1.5?1:c<3.5?2:c<7.5?5:10)*p; }
+
+// ---------------------------------------------------------------- time charts
+function lineChartSVG(series,xlabels,unit){
+  const wpx=940,hpx=280,L=46,R=12,T=14,BOT=34,IW=wpx-L-R,IH=hpx-T-BOT;
+  let ymax=1e-9; series.forEach(s=>s.vals.forEach(v=>{ if(v!=null) ymax=Math.max(ymax,v); }));
+  ymax*=1.12;
+  const x=j=>L+IW*(xlabels.length===1?0.5:j/(xlabels.length-1)), y=v=>T+IH-v/ymax*IH;
+  let s=`<svg viewBox="0 0 ${wpx} ${hpx}">`;
+  const step=niceStep(ymax);
+  for(let v=0;v<=ymax;v+=step)
+    s+=`<line x1="${L}" x2="${wpx-R}" y1="${y(v)}" y2="${y(v)}" stroke="#eef1f5"/>
+        <text x="${L-5}" y="${y(v)+4}" font-size="10" fill="#8a94a0" text-anchor="end">${v}${unit}</text>`;
+  const lblStep=Math.ceil(xlabels.length/16);
+  xlabels.forEach((lb,j)=>{ if(j%lblStep===0)
+    s+=`<text x="${x(j)}" y="${T+IH+16}" font-size="10" fill="#3c4650" text-anchor="middle">${lb}</text>`; });
+  for(const sr of series){
+    let path="",pen=false;
+    sr.vals.forEach((v,j)=>{ if(v==null){pen=false;return;} path+=(pen?"L":"M")+x(j).toFixed(1)+" "+y(v).toFixed(1); pen=true; });
+    s+=`<path d="${path}" fill="none" stroke="${sr.color}" stroke-width="1.8"/>`;
+    sr.vals.forEach((v,j)=>{ if(v!=null) s+=`<circle cx="${x(j)}" cy="${y(v)}" r="2.6" fill="${sr.color}"><title>${sr.name} @ ${xlabels[j]}\n${fmt(v)}%（n=${sr.ns[j]} 窗）</title></circle>`; });
+  }
+  return s+"</svg>";
+}
+
+function timeSeries(idxs,bucketOf,nBuckets,metric){
+  const per=new Map(); // row -> array of accum
+  for(const i of idxs){
+    const b=bucketOf(i); if(b<0||b>=nBuckets) continue;
+    if(!per.has(W.r[i])) per.set(W.r[i],Array.from({length:nBuckets},blank));
+    accum(per.get(W.r[i])[b],i);
+  }
+  const series=[];
+  for(const [r,arr] of [...per.entries()].sort((a,b)=>a[0]-b[0])){
+    const vals=arr.map(o=>{ const rr=rates(o); return rr&&o.n>=8?rr[metric]:null; });
+    if(vals.some(v=>v!=null))
+      series.push({name:ROWS[r],color:PALETTE[r%PALETTE.length],vals,ns:arr.map(o=>o.n)});
+  }
+  return series;
+}
+
+// ---------------------------------------------------------------- speaker stats
+function spkIdx(){ const out=[]; for(let i=0;i<K.s.length;i++) if(state.rows.has(S[K.s[i]].r)) out.push(i); return out; }
+function histSVG(groups,colors){
+  // groups: [{name, buckets:[{label,count}]}] rendered as grouped bars (percent)
+  const labels=groups[0].buckets.map(b=>b.label);
+  const wpx=470,hpx=240,L=40,R=8,T=18,BOT=42,IW=wpx-L-R,IH=hpx-T-BOT;
+  const tot=groups.map(g=>g.buckets.reduce((a,b)=>a+b.count,0)||1);
+  let ymax=0; groups.forEach((g,gi)=>g.buckets.forEach(b=>ymax=Math.max(ymax,b.count/tot[gi]*100)));
+  ymax=Math.max(ymax*1.15,5);
+  const y=v=>T+IH-v/ymax*IH, n=labels.length;
+  let s=`<svg viewBox="0 0 ${wpx} ${hpx}">`;
+  const step=niceStep(ymax);
+  for(let v=0;v<=ymax;v+=step)
+    s+=`<line x1="${L}" x2="${wpx-R}" y1="${y(v)}" y2="${y(v)}" stroke="#eef1f5"/>
+        <text x="${L-5}" y="${y(v)+4}" font-size="10" fill="#8a94a0" text-anchor="end">${v}%</text>`;
+  const slot=IW/n, bw=Math.min(30,slot*0.7/groups.length);
+  labels.forEach((lb,j)=>{
+    groups.forEach((g,gi)=>{
+      const v=g.buckets[j].count/tot[gi]*100;
+      const cx=L+slot*(j+0.5)+(gi-(groups.length-1)/2)*(bw+2);
+      s+=`<rect x="${cx-bw/2}" y="${y(v)}" width="${bw}" height="${T+IH-y(v)}" fill="${colors[gi]}">
+          <title>${g.name} · ${lb}: ${g.buckets[j].count} 人（${fmt(v)}%）</title></rect>`;
+    });
+    s+=`<text x="${L+slot*(j+0.5)}" y="${T+IH+15}" font-size="10" fill="#3c4650" text-anchor="middle">${lb}</text>`;
+  });
+  if(groups.length>1) groups.forEach((g,gi)=>{
+    s+=`<rect x="${L+gi*130}" y="${hpx-12}" width="10" height="10" fill="${colors[gi]}"/>
+        <text x="${L+gi*130+14}" y="${hpx-3}" font-size="11" fill="#3c4650">${g.name}</text>`;
+  });
+  return s+"</svg>";
+}
+function bucketCounts(vals,edges,labels,neverCount){
+  const buckets=labels.map(l=>({label:l,count:0}));
+  for(const v of vals){
+    for(let j=0;j<edges.length;j++)
+      if(v<=edges[j]){ buckets[j].count++; break; }
+    if(v>edges[edges.length-1]) buckets[edges.length].count++;
+  }
+  if(neverCount!=null) buckets[buckets.length-1].count=neverCount;
+  return buckets;
+}
+const median=a=>{ if(!a.length) return null; const b=[...a].sort((x,y)=>x-y); return b[Math.floor(b.length/2)]; };
+
+// ---------------------------------------------------------------- sessions
+const sessWins=[]; for(let i=0;i<NWIN;i++) (sessWins[W.s[i]] ??= []).push(i);
+const sessDer=S.map(s=>s.ref>=30?(s.miss+s.fa+s.conf)/s.ref*100:null);
+
+function renderSessTable(){
+  const q=el("sessFilter").value.trim().toLowerCase();
+  const idx=S.map((s,i)=>i).filter(i=>state.rows.has(S[i].r)&&sessDer[i]!=null
+      &&(!q||S[i].key.toLowerCase().includes(q)));
+  const keyFn={ der:i=>sessDer[i], miss:i=>S[i].miss/S[i].ref, fa:i=>S[i].fa/S[i].ref,
+    conf:i=>S[i].conf/S[i].ref, drift:i=>(S[i].conf-S[i].cl)/S[i].ref, dur:i=>S[i].dur }[state.sortKey];
+  idx.sort((a,b)=>keyFn(b)-keyFn(a));
+  el("sessCount").textContent=`共 ${idx.length} 个会话（显示前 40）`;
+  let h=`<tr><th data-k="">会话</th><th data-k="">行</th><th data-k="dur">时长min</th>
+    <th data-k="der">DER%</th><th data-k="miss">Miss%</th><th data-k="fa">FA%</th>
+    <th data-k="conf">Conf%</th><th data-k="drift">漂移%</th><th data-k="">人数 参考/预测</th><th data-k="">混响s</th></tr>`;
+  for(const i of idx.slice(0,40)){
+    const s=S[i];
+    h+=`<tr class="sess${i===state.drillSess?" sel":""}" data-i="${i}">
+      <td>${s.key}</td><td><span class="dot" style="background:${PALETTE[s.r%PALETTE.length]};display:inline-block;width:8px;height:8px;border-radius:50%"></span> ${ROWS[s.r]}</td>
+      <td>${(s.dur/60).toFixed(1)}</td><td><b>${fmt(sessDer[i])}</b></td>
+      <td>${fmt(s.miss/s.ref*100)}</td><td>${fmt(s.fa/s.ref*100)}</td>
+      <td>${fmt(s.conf/s.ref*100)}</td><td>${fmt((s.conf-s.cl)/s.ref*100)}</td>
+      <td>${s.nspk} / ${s.nhyp}</td><td>${s.rev==null?"–":s.rev.toFixed(2)}</td></tr>`;
+  }
+  el("sessTable").innerHTML=h;
+  el("sessTable").querySelectorAll("tr.sess").forEach(tr=>tr.onclick=()=>{ state.drillSess=+tr.dataset.i; renderSessTable(); renderDrill(); });
+  el("sessTable").querySelectorAll("th").forEach(th=>th.onclick=()=>{ if(th.dataset.k){ state.sortKey=th.dataset.k; renderSessTable(); } });
+  if(state.drillSess==null||!state.rows.has(S[state.drillSess].r)) state.drillSess=idx[0]??null;
+}
+
+function renderDrill(){
+  const si=state.drillSess;
+  if(si==null){ el("drill").innerHTML=""; el("drillTitle").textContent=""; return; }
+  const s=S[si], wins=sessWins[si];
+  el("drillTitle").textContent=`${s.key} — ${ROWS[s.r]} · ${(s.dur/60).toFixed(1)}min · DER ${fmt(sessDer[si])}% · ${s.nspk} 说话人（预测 ${s.nhyp}）· 混响 ${s.rev==null?"–":s.rev+"s"} · collar=${s.collar}`;
+  const wpx=Math.max(940,wins.length*14+80),hpx=320,L=46,R=10,T=20,BOT=40,IW=wpx-L-R,IH=hpx-T-BOT;
+  const CAP=150, y=v=>T+IH-Math.min(v,CAP)/CAP*IH;
+  const bw=Math.min(22,IW/wins.length*0.8);
+  let svg=`<svg viewBox="0 0 ${wpx} ${hpx}" style="min-width:${Math.min(wpx,2200)}px">`;
+  for(let v=0;v<=CAP;v+=25)
+    svg+=`<line x1="${L}" x2="${wpx-R}" y1="${y(v)}" y2="${y(v)}" stroke="#eef1f5"/>
+          <text x="${L-5}" y="${y(v)+4}" font-size="10" fill="#8a94a0" text-anchor="end">${v}%</text>`;
+  let ovPath="",pen=false;
+  wins.forEach((i,j)=>{
+    const cx=L+IW*(j+0.5)/wins.length, ref=W.ref[i];
+    const r=ref>=1?{miss:W.miss[i]/ref*100,fa:W.fa[i]/ref*100,conf:W.conf[i]/ref*100}:null;
+    const tip=`t=${(W.t0[i]/60).toFixed(1)}min  参考 ${W.ref[i]}s\n`+(r?`DER ${fmt(r.miss+r.fa+r.conf)}%  Miss ${fmt(r.miss)}  FA ${fmt(r.fa)}  Conf ${fmt(r.conf)}\n局部Conf ${fmt(W.cl[i]/ref*100)}%`:"无参考语音")+
+      `\n说话人 ${W.k[i]}  重叠 ${W.ov[i]==null?"–":(W.ov[i]*100).toFixed(0)+"%"}  短turn ${W.ns[i]}  SNR ${W.snr[i]??"–"}dB`;
+    if(r){
+      let y0=T+IH, tot=0;
+      for(const[c,v]of[["miss",r.miss],["fa",r.fa],["conf",r.conf]]){
+        const capv=Math.min(tot+v,CAP)-Math.min(tot,CAP); tot+=v;
+        const h=capv/CAP*IH;
+        svg+=`<rect x="${cx-bw/2}" y="${y0-h}" width="${bw}" height="${h}" fill="var(--${c})"><title>${tip}</title></rect>`;
+        y0-=h;
+      }
+      if(tot>CAP) svg+=`<text x="${cx}" y="${T-6}" font-size="9" fill="#b3382e" text-anchor="middle">↑</text>`;
+      const clv=(r.miss+r.fa+W.cl[i]/ref*100);
+      svg+=`<line x1="${cx-bw/2}" x2="${cx+bw/2}" y1="${y(clv)}" y2="${y(clv)}" stroke="#111" stroke-width="1.4"/>`;
+    }
+    if(W.ov[i]!=null){ ovPath+=(pen?"L":"M")+cx.toFixed(1)+" "+y(W.ov[i]*100).toFixed(1); pen=true; } else pen=false;
+    if(W.t0[i]>0&&W.nw[i]>0) svg+=`<text x="${cx}" y="${T+IH+14}" font-size="10" fill="#1a7f37" text-anchor="middle">▲<title>新说话人 ×${W.nw[i]}</title></text>`;
+    if(W.re[i]>0) svg+=`<text x="${cx}" y="${T+IH+26}" font-size="9" fill="#a463f2" text-anchor="middle">●<title>长沉默后回归 ×${W.re[i]}</title></text>`;
+    if(j%Math.ceil(wins.length/24)===0)
+      svg+=`<text x="${cx}" y="${T+IH+38}" font-size="9.5" fill="#8a94a0" text-anchor="middle">${(W.t0[i]/60).toFixed(0)}m</text>`;
+  });
+  svg+=`<path d="${ovPath}" fill="none" stroke="#1a7f37" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.85"/>`;
+  el("drill").innerHTML=svg+"</svg>";
+}
+
+// ---------------------------------------------------------------- findings
+function renderFindings(idxs,overall){
+  const out=[];
+  if(overall) for(const p of PANELS){
+    const bs=bucketize(idxs,p);
+    p.buckets.forEach((b,bi)=>{
+      const r=groupRates(bs[bi]);
+      if(!r||r.n<30||r.ref<1800) return;
+      for(const c of["miss","fa","conf","der"]){
+        if(overall[c]<0.3) continue;
+        const ratio=r[c]/overall[c];
+        if(ratio>=1.5) out.push({ratio,html:`「${p.title} = ${b.label}」的 <b>${CN[c]} 为整体的 ${ratio.toFixed(1)}×</b>（${fmt(overall[c])}% → ${fmt(r[c])}%；n=${r.n} 窗，${(r.ref/3600).toFixed(1)}h）`});
+      }
+    });
+  }
+  out.sort((a,b)=>b.ratio-a.ratio);
+  el("findings").innerHTML=out.slice(0,10).map(f=>`<li>${f.html}</li>`).join("")||"<li>当前筛选下没有显著偏离整体的桶。</li>";
+}
+
+// ---------------------------------------------------------------- render all
+function renderAll(){
+  const idxs=filteredIdx(), overall=groupRates(idxs);
+  // summary
+  const hours=idxs.reduce((a,i)=>a+W.ref[i],0)/3600;
+  const nSess=new Set(idxs.map(i=>W.s[i])).size;
+  const cards=[["窗口数",idxs.length.toLocaleString()],["会话数",nSess],["参考语音",hours.toFixed(1)+" h"],
+    ["DER",fmt(overall?.der)+"%"],["Miss",fmt(overall?.miss)+"%"],["FA",fmt(overall?.fa)+"%"],
+    ["Confusion",fmt(overall?.conf)+"%"],["映射漂移",fmt(overall?.drift)+"%"]];
+  el("summary").innerHTML=cards.map(([l,v])=>`<div class="card stat"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+  renderFindings(idxs,overall);
+  // panels
+  el("panels").innerHTML=PANELS.map((p,pi)=>{
+    const bs=bucketize(idxs,p);
+    const buckets=p.buckets.map((b,bi)=>({label:b.label,r:groupRates(bs[bi])}));
+    return `<div class="card panel"><h3>${p.title}</h3><div class="note">${p.note}</div>${stackedBarSVG(buckets,overall)}</div>`;
+  }).join("");
+  // time charts
+  const m=state.metric;
+  const NA=25;
+  const absSeries=timeSeries(idxs,i=>Math.min(Math.floor(W.t0[i]/90),NA-1),NA,m);
+  el("timeAbs").innerHTML=lineChartSVG(absSeries,Array.from({length:NA},(_,j)=>j===NA-1?`≥${(j*1.5).toFixed(0)}`:(j*1.5).toFixed(1)),"%");
+  const relIdxs=idxs.filter(i=>S[W.s[i]].dur>=450);
+  const relSeries=timeSeries(relIdxs,i=>Math.min(Math.floor(W.pos[i]*10),9),10,m);
+  el("timeRel").innerHTML=lineChartSVG(relSeries,Array.from({length:10},(_,j)=>`${j*10}–${j*10+10}%`),"%");
+  el("timeLegend").innerHTML=absSeries.map(s=>`<span><span class="dot" style="background:${s.color};display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px"></span>${s.name}</span>`).join("");
+  // speakers
+  const ks=spkIdx();
+  const det=ks.map(i=>K.det[i]).filter(v=>v!=null);
+  const attAll=ks.map(i=>K.att[i]);
+  const att=attAll.filter(v=>v!=null);
+  const never=attAll.filter(v=>v==null).length;
+  const sw=ks.map(i=>K.sw[i]).filter(v=>v!=null);
+  const pur=ks.map(i=>K.pur[i]).filter(v=>v!=null);
+  const scards=[["说话人数",ks.length],["检出延迟中位",fmt(median(det),2)+" s"],
+    ["归属延迟中位",fmt(median(att),2)+" s"],["从未正确归属",fmt(never/Math.max(ks.length,1)*100)+"%"],
+    ["闪烁中位",fmt(median(sw),1)+" 次/min"],["纯度中位",fmt(median(pur)*100)+"%"]];
+  el("spkcards").innerHTML=scards.map(([l,v])=>`<div class="card stat"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+  const edges=[0.5,1,2,5,15,1e9], labels=["≤0.5s","0.5–1","1–2","2–5","5–15",">15s","未归属"];
+  el("latHist").innerHTML=histSVG([
+    {name:"检出(任意标签)",buckets:bucketCounts(det,edges,labels,ks.length-det.length)},
+    {name:"归属(正确标签)",buckets:bucketCounts(att,edges,labels,never)}],["#6cc5b0","#4269d0"]);
+  el("flickHist").innerHTML=histSVG([{name:"闪烁",buckets:bucketCounts(sw,[0.2,1,2,4,1e9],["≤0.2","0.2–1","1–2","2–4",">4","(无)"])}],["#a463f2"]);
+  el("purHist").innerHTML=histSVG([{name:"纯度",buckets:bucketCounts(pur,[0.5,0.7,0.85,0.95,1.01],["≤50%","50–70","70–85","85–95",">95%","(无)"])}],["#3ca951"]);
+  renderSessTable(); renderDrill();
+}
+
+// ---------------------------------------------------------------- init
+el("meta").textContent=`评分窗口 ${D.window}s · ${S.length} 会话 · ${NWIN.toLocaleString()} 窗口 · 各行 collar 沿用 benchmark 配置 · 全档固定最优说话人映射`;
+el("rowchecks").innerHTML=ROWS.map((r,i)=>
+  `<label><input type="checkbox" data-r="${i}" ${state.rows.has(i)?"checked":""}><span class="dot" style="background:${PALETTE[i%PALETTE.length]}"></span>${r}</label>`).join("");
+el("rowchecks").querySelectorAll("input").forEach(cb=>cb.onchange=()=>{
+  const r=+cb.dataset.r; cb.checked?state.rows.add(r):state.rows.delete(r); renderAll(); });
+document.querySelectorAll("input[name=mode]").forEach(rb=>rb.onchange=()=>{ state.mode=rb.value; renderAll(); });
+el("timeMetric").onchange=e=>{ state.metric=e.target.value; renderAll(); };
+el("sessFilter").oninput=()=>renderSessTable();
+renderAll();
+</script>
+</body>
+</html>

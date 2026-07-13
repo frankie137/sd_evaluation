@@ -12,7 +12,7 @@ import argparse
 import json
 from pathlib import Path
 
-OUT_ROOT = Path("/workspace/sd_evaluation/out/attribution")
+OUT_ROOT = Path("./out/attribution")
 TEMPLATE = Path(__file__).parent / "attribution_report_template.html"
 
 WIN_FIELDS = ["r", "s", "t0", "ref", "miss", "fa", "conf", "cl", "k", "sp",
