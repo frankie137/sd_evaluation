@@ -34,7 +34,6 @@ POSTPROC_YAML = "/workspace/sd_evaluation/sortformer_postprocess.yaml"
 DEFAULT_CFG = dict(collar=0.25, skip_overlap=False, batch=1)
 DATASET_CFG = {
     "AISHELL-4":        dict(collar=0.25, skip_overlap=False, batch=1),
-    "AMI":              dict(collar=0.0,  skip_overlap=False, batch=1),
     # Forced-align AMI annotations share AMI's scoring convention (collar=0).
     "AMI_forced_align": dict(collar=0.0,  skip_overlap=False, batch=1),
     "AVA-AVD":          dict(collar=0.25, skip_overlap=False, batch=2),
@@ -45,9 +44,9 @@ DATASET_CFG = {
     "VoxConverse":      dict(collar=0.25, skip_overlap=False, batch=1),
 }
 # Datasets scored as one row (no <=4 / >4 split).
-EXEMPT = {"Alimeeting", "AMI", "AMI_forced_align", "MagicData-RAMC"}
+EXEMPT = {"Alimeeting", "AMI_forced_align", "MagicData-RAMC"}
 # Datasets reported per leaf collection (separate rows) instead of pooled.
-SPLIT_BY_LEAF = {"AMI", "AMI_forced_align", "Alimeeting"}
+SPLIT_BY_LEAF = {"AMI_forced_align", "Alimeeting"}
 # Datasets present under ROOT but excluded from the whole pipeline.
 # AMI_v1.6.2 is the older, less accurate annotation; AMI_forced_align is the
 # annotation of record for AMI audio.
