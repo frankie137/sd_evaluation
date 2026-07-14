@@ -84,7 +84,8 @@ def score_pa(gt_path, pred_path, uri):
     ref, hyp = _ann(gt_path, uri), _ann(pred_path, uri)
 
     def one(collar, skip):
-        c = DiarizationErrorRate(collar=collar, skip_overlap=skip)(ref, hyp, detailed=True)
+        # collar is per-side (md-eval convention); pyannote takes the total window.
+        c = DiarizationErrorRate(collar=2 * collar, skip_overlap=skip)(ref, hyp, detailed=True)
         t = c["total"]
         return {
             "der": round(c["diarization error rate"] * 100, 2),
@@ -95,7 +96,7 @@ def score_pa(gt_path, pred_path, uri):
         }
 
     # optimal speaker mapping (hyp_label -> ref_label) + matched-pair overlap
-    hyp2ref = DiarizationErrorRate(collar=0.25).optimal_mapping(ref, hyp)
+    hyp2ref = DiarizationErrorRate(collar=2 * 0.25).optimal_mapping(ref, hyp)
     ref2hyp = {r: h for h, r in hyp2ref.items()}
     overlaps = {}
     for h, r in hyp2ref.items():
@@ -104,9 +105,9 @@ def score_pa(gt_path, pred_path, uri):
 
     return {
         "strict": one(0.0, False),     # no collar, overlap scored
-        "std": one(0.50, False),       # md-eval -c 0.25 equivalent, overlap scored
-        "pa025": one(0.25, False),     # pyannote-native collar 0.25
-        "jer": round(JaccardErrorRate(collar=0.25)(ref, hyp) * 100, 2),
+        "std": one(0.25, False),       # ±0.25s per side (md-eval -c 0.25), overlap scored
+        "pa025": one(0.125, False),    # ±0.125s per side (legacy pyannote-0.25 total)
+        "jer": round(JaccardErrorRate(collar=2 * 0.25)(ref, hyp) * 100, 2),
         "ref_labels": sorted(ref.labels()),
         "hyp_labels": sorted(hyp.labels(),
                              key=lambda x: int(x.split("_")[-1]) if x.split("_")[-1].isdigit() else x),

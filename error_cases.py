@@ -103,7 +103,8 @@ def case_detail(case):
     ref = load_rttm(ref_path, uri=key)
     hyp = load_rttm(pred_path, uri=key)
     cfg = cfg_for(row.split("/")[0])
-    metric = DiarizationErrorRate(collar=cfg["collar"],
+    # collar is per-side (md-eval convention); pyannote takes the total window.
+    metric = DiarizationErrorRate(collar=2 * cfg["collar"],
                                   skip_overlap=cfg["skip_overlap"])
     mapping = dict(metric.optimal_mapping(ref, hyp))   # hyp label -> ref label
 

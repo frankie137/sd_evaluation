@@ -183,7 +183,8 @@ def _process_session(task):
     # ---- session-level optimal mapping, then rename hyp labels to ref labels.
     # Unmapped hyp labels get reserved names so they can never collide with a
     # reference label (they count as confusion / FA, never as correct).
-    der_metric = DiarizationErrorRate(collar=collar, skip_overlap=skip_ov)
+    # collar is per-side (md-eval convention); pyannote takes the total window.
+    der_metric = DiarizationErrorRate(collar=2 * collar, skip_overlap=skip_ov)
     mapping = dict(der_metric.optimal_mapping(ref, hyp))
     uniq = {l: f"__h{i}__" for i, l in enumerate(hyp.labels())}
     to_ref = {uniq[l]: mapping.get(l, f"__unmapped_{i}__")
@@ -226,8 +227,8 @@ def _process_session(task):
     reverb_t60 = estimate_reverb_t60(energy_db)
 
     # ---- per-window scoring + attributes
-    ier = IdentificationErrorRate(collar=collar, skip_overlap=skip_ov)
-    der_local = DiarizationErrorRate(collar=collar, skip_overlap=skip_ov)
+    ier = IdentificationErrorRate(collar=2 * collar, skip_overlap=skip_ov)
+    der_local = DiarizationErrorRate(collar=2 * collar, skip_overlap=skip_ov)
     n_win = max(1, int(math.ceil(duration / window)))
     windows = []
     for w in range(n_win):

@@ -34,10 +34,12 @@ def main():
     print(f"ref speakers: {sorted(ref.labels())}  ({ref.get_timeline().duration():.1f}s talk)")
     print(f"hyp speakers: {sorted(hyp.labels())}  ({hyp.get_timeline().duration():.1f}s talk)\n")
 
+    # collar is per-side (md-eval convention: ±collar around each reference
+    # boundary); pyannote takes the total window, so it receives 2*collar.
     settings = [
         ("collar=0.0,  overlap scored (strict)", dict(collar=0.0, skip_overlap=False)),
-        ("collar=0.25, overlap scored",          dict(collar=0.25, skip_overlap=False)),
-        ("collar=0.50, overlap scored (~md-eval -c 0.25)", dict(collar=0.50, skip_overlap=False)),
+        ("collar=0.25 (md-eval -c 0.25), overlap scored", dict(collar=0.25, skip_overlap=False)),
+        ("collar=0.50, overlap scored",          dict(collar=0.50, skip_overlap=False)),
         ("collar=0.25, overlap SKIPPED",         dict(collar=0.25, skip_overlap=True)),
     ]
 
@@ -45,7 +47,7 @@ def main():
     print("-" * 80)
     results = {}
     for name, kw in settings:
-        m = DiarizationErrorRate(**kw)
+        m = DiarizationErrorRate(collar=2 * kw["collar"], skip_overlap=kw["skip_overlap"])
         c = m(ref, hyp, detailed=True)
         total = c["total"]
         der = c["diarization error rate"] * 100
@@ -57,10 +59,10 @@ def main():
                              total_ref_s=round(total, 1))
         print(f"{name:<48} {der:7.2f} {miss:7.2f} {fa:7.2f} {conf:7.2f}")
 
-    jer = JaccardErrorRate(collar=0.25)(ref, hyp) * 100
+    jer = JaccardErrorRate(collar=2 * 0.25)(ref, hyp) * 100
     print(f"\nJaccard Error Rate (JER, collar=0.25): {jer:.2f}%")
 
-    der_map = DiarizationErrorRate(collar=0.25)
+    der_map = DiarizationErrorRate(collar=2 * 0.25)
     mapping = der_map.optimal_mapping(ref, hyp)
     print("\noptimal mapping (hyp -> ref):")
     for h, r in mapping.items():

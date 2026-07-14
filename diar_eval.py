@@ -163,7 +163,10 @@ def _score_window(
 ) -> WindowResult:
     ref_w = reference.crop(region, mode="intersection")
     hyp_w = hypothesis.crop(region, mode="intersection")
-    metric = DiarizationErrorRate(collar=collar, skip_overlap=skip_overlap)
+    # `collar` is per-side (md-eval convention, ±collar around each reference
+    # boundary); pyannote's parameter is the TOTAL no-score window centred on
+    # the boundary, so it gets twice the user-facing value.
+    metric = DiarizationErrorRate(collar=2 * collar, skip_overlap=skip_overlap)
     c = metric(ref_w, hyp_w, detailed=True)
     miss = float(c["missed detection"])
     fa = float(c["false alarm"])
@@ -199,9 +202,12 @@ def evaluate(
     See the module docstring for the pooled-DER definition and `hypothesis`
     accepted forms. Speaker mapping is optimised independently per window.
 
-    Note on collar: with collar > 0, window boundaries introduce extra no-score
-    collars around the artificial edges. For pooled windowed DER, collar=0
-    (the default) is the cleanest; pass a collar only if you know you want it.
+    Note on collar: `collar` is per-side, md-eval style — ±collar seconds
+    around each reference boundary are excluded (pyannote receives 2*collar,
+    since its parameter is the total window). With collar > 0, window
+    boundaries introduce extra no-score collars around the artificial edges.
+    For pooled windowed DER, collar=0 (the default) is the cleanest; pass a
+    collar only if you know you want it.
     """
     reference = _as_annotation(reference, uri)
     per_window_hyp = isinstance(hypothesis, (list, tuple))

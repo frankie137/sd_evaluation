@@ -31,6 +31,8 @@ POSTPROC_YAML = "/workspace/sd_evaluation/sortformer_postprocess.yaml"
 
 # Per-dataset scoring parameters. Default: collar=0.25, skip_overlap=False.
 # AMI / Alimeeting / NOTSOFAR use collar=0. `batch` is the inference batch size.
+# collar is per-side (md-eval convention, ±collar around each reference
+# boundary); diar_eval doubles it for pyannote, whose param is the total window.
 DEFAULT_CFG = dict(collar=0.25, skip_overlap=False, batch=1)
 DATASET_CFG = {
     "AISHELL-4":        dict(collar=0.25, skip_overlap=False, batch=1),
