@@ -126,6 +126,7 @@ class WindowResult:
     error: float              # miss + false_alarm + confusion
     der: Optional[float]      # window DER (%) = error / reference * 100 (None if reference==0)
     mapping: Dict[str, str]   # optimal hyp_label -> ref_label, within this window
+    n_ref_speakers: int = 0   # distinct reference speakers present in the window
 
 
 @dataclass
@@ -182,6 +183,7 @@ def _score_window(
         start=round(region.start, 3), end=round(region.end, 3),
         reference=ref, miss=miss, false_alarm=fa, confusion=conf,
         error=error, der=der, mapping=mapping,
+        n_ref_speakers=len(ref_w.labels()),
     )
 
 

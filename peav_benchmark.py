@@ -36,7 +36,7 @@ for p in (ALM_ROOT, SD_EVAL):
 
 import torch
 
-import benchmark as B  # cfg_for, dataset_of, n_speakers, EXEMPT, SPLIT_BY_LEAF, SUBSET_ORDER
+import benchmark as B  # cfg_for, dataset_of, EXEMPT, SPLIT_BY_LEAF
 import diar_eval
 from peav_windowed_eval import load_audio, load_peav_model, probs_to_segments
 from tasks.dia.metrics import get_der_frame_length_sec
@@ -194,7 +194,7 @@ def infer_all(only_datasets=None, limit_files=None, max_batch=DEFAULT_BATCH):
 # Scoring
 # --------------------------------------------------------------------------- #
 def build_groups(only_datasets=None, limit_files=None):
-    """row -> {subset: [(ref_rttm, pred_rttm, windows), ...]}."""
+    """row -> [(ref_rttm, pred_rttm, windows), ...]."""
     groups = {}
     for name, wavs, rttms in find_collections():
         ds = B.dataset_of(name)
@@ -212,56 +212,79 @@ def build_groups(only_datasets=None, limit_files=None):
             if not side.exists():
                 continue
             windows = json.loads(side.read_text())["windows"]
-            if ds in B.EXEMPT:
-                subset = "all"
-            else:
-                subset = "<=4 spk" if B.n_speakers(ref) <= 4 else ">4 spk"
-            groups.setdefault(row, {}).setdefault(subset, []).append((ref, pred, windows))
+            groups.setdefault(row, []).append((ref, pred, windows))
     return groups
 
 
-def score_group(pairs, collar, skip_overlap):
-    tot_miss = tot_fa = tot_conf = tot_ref = 0.0
-    n_win = 0
+def window_subset(n_ref_speakers, expected_spk):
+    """Subset label for a single window, keyed by its reference speaker count."""
+    return (f"<={expected_spk} spk" if n_ref_speakers <= expected_spk
+            else f">{expected_spk} spk")
+
+
+def subset_order(subset):
+    if subset == "all":
+        return 0
+    return 1 if subset.startswith("<=") else 2
+
+
+def score_row(pairs, ds, collar, skip_overlap, expected_spk):
+    """Pool each file's windows into per-window speaker subsets.
+
+    EXEMPT datasets stay a single "all" subset; every other dataset bins each
+    window into <=N / >N by the reference speakers present in that window.
+    """
+    subsets = {}
     for ref, pred, windows in pairs:
         res = diar_eval.evaluate(str(ref), str(pred), windows=windows,
                                  collar=collar, skip_overlap=skip_overlap)
         for wr in res.windows:
-            tot_miss += wr.miss
-            tot_fa += wr.false_alarm
-            tot_conf += wr.confusion
-            tot_ref += wr.reference
-            n_win += 1
-    err = tot_miss + tot_fa + tot_conf
-    der = (err / tot_ref * 100) if tot_ref > 0 else 0.0
-    pct = lambda x: (x / tot_ref * 100) if tot_ref > 0 else 0.0
-    return dict(der=der, miss=pct(tot_miss), fa=pct(tot_fa), conf=pct(tot_conf),
-                ref_s=tot_ref, n_windows=n_win)
+            subset = "all" if ds in B.EXEMPT else window_subset(
+                wr.n_ref_speakers, expected_spk)
+            acc = subsets.setdefault(subset, dict(
+                miss=0.0, fa=0.0, conf=0.0, ref=0.0, n_win=0))
+            acc["miss"] += wr.miss
+            acc["fa"] += wr.false_alarm
+            acc["conf"] += wr.confusion
+            acc["ref"] += wr.reference
+            acc["n_win"] += 1
+    rows = {}
+    for subset, acc in subsets.items():
+        err = acc["miss"] + acc["fa"] + acc["conf"]
+        pct = lambda x: (x / acc["ref"] * 100) if acc["ref"] > 0 else 0.0
+        rows[subset] = dict(
+            der=(err / acc["ref"] * 100) if acc["ref"] > 0 else 0.0,
+            miss=pct(acc["miss"]), fa=pct(acc["fa"]), conf=pct(acc["conf"]),
+            ref_s=acc["ref"], n_windows=acc["n_win"])
+    return rows
 
 
-def score_all(only_datasets=None, limit_files=None):
+def score_all(only_datasets=None, limit_files=None, expected_spk=4):
     groups = build_groups(only_datasets, limit_files)
     rows = []
     for row in sorted(groups):
         ds = B.dataset_of(row)
         c = B.cfg_for(ds)
-        for subset in sorted(groups[row], key=lambda s: B.SUBSET_ORDER.get(s, 9)):
-            pairs = groups[row][subset]
-            r = score_group(pairs, c["collar"], c["skip_overlap"])
-            rows.append({"dataset": row, "subset": subset, "n_files": len(pairs),
+        by_subset = score_row(groups[row], ds, c["collar"], c["skip_overlap"],
+                              expected_spk)
+        for subset in sorted(by_subset, key=subset_order):
+            r = by_subset[subset]
+            rows.append({"dataset": row, "subset": subset,
                          "collar": c["collar"], "skip_overlap": c["skip_overlap"], **r})
-            print(f"  {row:16s} {subset:8s} n={len(pairs):4d}  DER={r['der']:6.2f}  "
+            print(f"  {row:16s} {subset:8s} win={r['n_windows']:5d}  "
+                  f"DER={r['der']:6.2f}  "
                   f"miss={r['miss']:6.2f}  fa={r['fa']:6.2f}  conf={r['conf']:6.2f}  "
                   f"(collar={c['collar']})", flush=True)
     return rows
 
 
 def render_table(rows):
-    h = ("| Dataset | Subset | #files | collar | DER % | Miss % | FA % | Conf % |\n"
+    h = ("| Dataset | Subset | #windows | collar | DER % | Miss % | FA % | Conf % |\n"
          "|---|---|--:|--:|--:|--:|--:|--:|\n")
     body = "".join(
-        f"| {r['dataset']} | {r['subset']} | {r['n_files']} | {r['collar']} | "
-        f"{r['der']:.2f} | {r['miss']:.2f} | {r['fa']:.2f} | {r['conf']:.2f} |\n"
+        f"| {r['dataset']} | {r['subset']} | {r['n_windows']} | "
+        f"{r['collar']} | {r['der']:.2f} | {r['miss']:.2f} | {r['fa']:.2f} | "
+        f"{r['conf']:.2f} |\n"
         for r in rows)
     return h + body
 
@@ -273,6 +296,8 @@ def main():
     ap.add_argument("--datasets", default=None, help="comma-separated dataset names")
     ap.add_argument("--limit-files", type=int, default=None)
     ap.add_argument("--batch", type=int, default=DEFAULT_BATCH)
+    ap.add_argument("--expected-spk", type=int, default=4,
+                    help="per-window speaker threshold for the <=N / >N split")
     ap.add_argument("--table", default=str(OUT_DIR / "peav_benchmark_table.md"))
     ap.add_argument("--json", default=str(OUT_DIR / "peav_benchmark.json"))
     args = ap.parse_args()
@@ -282,7 +307,8 @@ def main():
         infer_all(only_datasets=only, limit_files=args.limit_files, max_batch=args.batch)
     if args.stage in ("all", "score"):
         print("\n=== scoring (PEAV windowed, Sortformer settings) ===", flush=True)
-        rows = score_all(only_datasets=only, limit_files=args.limit_files)
+        rows = score_all(only_datasets=only, limit_files=args.limit_files,
+                         expected_spk=args.expected_spk)
         table = render_table(rows)
         OUT_DIR.mkdir(parents=True, exist_ok=True)
         Path(args.table).write_text(table)
