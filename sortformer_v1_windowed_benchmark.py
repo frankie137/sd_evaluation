@@ -20,10 +20,6 @@ Two phases (both resumable):
             <key>.json sidecar holding the window tiling. Cached files skipped.
   score  -- group per benchmark.py rules, score each file with
             diar_eval.evaluate(ref, pred, windows=...), pool, emit table.
-
-Post-processing defaults to the model card's DIHARD3-dev optimized parameters
-(sortformer_v1_postprocess_dh3.yaml); pass --postprocessing-yaml '' to disable
-(binarization only).
 """
 from __future__ import annotations
 
@@ -49,7 +45,6 @@ WINDOW_SEC = 90.0
 # Sortformer normalises the waveform by the BATCH max, so predictions depend on
 # batch composition; batch 1 matches the NeMo model-card inference path.
 DEFAULT_BATCH = 1
-POSTPROC_YAML = str(SD_EVAL / "sortformer_v1_postprocess_dh3.yaml")
 
 
 def pred_root(window_sec: float) -> Path:
@@ -89,12 +84,11 @@ def slice_windows(wav_path: Path, window_sec: float, tmp_dir: Path):
 
 
 def infer_file(model, wav_path: Path, window_sec: float, batch: int,
-               postprocessing_yaml, tmp_dir: Path):
+               tmp_dir: Path):
     total, windows, chunks = slice_windows(wav_path, window_sec, tmp_dir)
     try:
         preds = model.diarize(audio=[str(p) for p in chunks], batch_size=batch,
-                              verbose=False,
-                              postprocessing_yaml=postprocessing_yaml)
+                              verbose=False)
     finally:
         for p in chunks:
             p.unlink(missing_ok=True)
@@ -127,11 +121,11 @@ def write_windowed_rttm(windows, per_window_segs, uri, out_rttm, out_json, total
 
 
 def infer_all(window_sec, only_datasets=None, limit_files=None,
-              batch=DEFAULT_BATCH, postprocessing_yaml=None):
+              batch=DEFAULT_BATCH):
     root = pred_root(window_sec)
     model = load_model()
-    print(f"[infer] model={MODEL} window={window_sec:g}s batch={batch} "
-          f"postproc={'on' if postprocessing_yaml else 'off'}\n", flush=True)
+    print(f"[infer] model={MODEL} window={window_sec:g}s batch={batch}\n",
+          flush=True)
     total_new = 0
     with tempfile.TemporaryDirectory(prefix="sfv1_chunks_") as td:
         tmp_dir = Path(td)
@@ -155,7 +149,7 @@ def infer_all(window_sec, only_datasets=None, limit_files=None,
             t0 = time.time()
             for k, w in enumerate(todo, 1):
                 total_sec, windows, segs = infer_file(
-                    model, w, window_sec, batch, postprocessing_yaml, tmp_dir)
+                    model, w, window_sec, batch, tmp_dir)
                 write_windowed_rttm(windows, segs, w.stem,
                                     pred_dir / (w.stem + ".rttm"),
                                     pred_dir / (w.stem + ".json"), total_sec)
@@ -282,8 +276,6 @@ def main():
     ap.add_argument("--batch", type=int, default=DEFAULT_BATCH)
     ap.add_argument("--expected-spk", type=int, default=4,
                     help="per-window speaker threshold for the <=N / >N split")
-    ap.add_argument("--postprocessing-yaml", default=POSTPROC_YAML,
-                    help="model-card DH3-dev post-processing; pass '' to disable")
     ap.add_argument("--table", default=None, help="output markdown table path")
     ap.add_argument("--json", default=None, help="output json path")
     args = ap.parse_args()
@@ -295,8 +287,7 @@ def main():
 
     if args.stage in ("all", "infer"):
         infer_all(args.window, only_datasets=only, limit_files=args.limit_files,
-                  batch=args.batch,
-                  postprocessing_yaml=(args.postprocessing_yaml or None))
+                  batch=args.batch)
     if args.stage in ("all", "score"):
         print(f"\n=== scoring (offline Sortformer v1, {args.window:g}s windows) ===",
               flush=True)
